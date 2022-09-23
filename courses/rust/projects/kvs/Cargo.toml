@@ -11,3 +11,5 @@ predicates = "1.0.0"
 
 [dependencies]
 clap = {version = "3.2.22", features = ["derive"]}
+tempfile = "3.3.0"
+walkdir = "2.3.2"

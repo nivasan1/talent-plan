@@ -24,7 +24,7 @@ pub struct KvStore {
 /// Instantiate a new empty kv_store object
 /// along with a fresh HashMap<String, String>
 pub fn new() -> KvStore {
-    KvStore{
+    KvStore {
         map: HashMap::new(),
     }
 }
@@ -37,12 +37,12 @@ impl KvStore {
     }
 
     /// Gets a value associated with the key in KvStore.map
-    /// returns None if the key does not exist 
+    /// returns None if the key does not exist
     /// clones the string from the map if it exists
-    pub fn get(&self, key: String) -> Option<String> {  
+    pub fn get(&self, key: String) -> Option<String> {
         match self.map.get(&key) {
             None => None,
-            Some(ref val) => Some(val.to_string())
+            Some(ref val) => Some(val.to_string()),
         }
     }
 

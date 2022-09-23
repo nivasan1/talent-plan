@@ -1,7 +1,6 @@
 use clap::{Args, Parser, Subcommand};
 use kvs::kvs;
 
-
 #[derive(Parser)]
 #[clap(author, version)]
 struct Cli {
@@ -43,8 +42,12 @@ fn main() {
     let mut store = kvs::new();
 
     match &cli.command {
-        Commands::set(args) => (store.set(args.key.to_owned().unwrap(), args.value.to_owned().unwrap())),
-        Commands::get(args) => {store.get(args.key.to_owned().unwrap());},
-        Commands::rm(args) => (store.remove(args.key.to_owned().unwrap()))
+        Commands::set(args) => {
+            store.set(args.key.to_owned().unwrap(), args.value.to_owned().unwrap())
+        }
+        Commands::get(args) => {
+            store.get(args.key.to_owned().unwrap());
+        }
+        Commands::rm(args) => (store.remove(args.key.to_owned().unwrap())),
     }
 }
