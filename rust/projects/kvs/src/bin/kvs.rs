@@ -1,5 +1,5 @@
 use clap::{Args, Parser, Subcommand};
-use kvs::kvs::{KvStore, Result, new};
+use kvs::kvs::{KvStore, Result};
 
 #[derive(Parser)]
 #[clap(author, version)]
@@ -39,15 +39,16 @@ struct Rm {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let mut store = new();
 
     match &cli.command {
         Commands::set(args) => {
-            store.set(args.key.to_owned().unwrap(), args.value.to_owned().unwrap())
+            todo!()
         }
         Commands::get(args) => {
-            store.get(args.key.to_owned().unwrap())
+            todo!()
         }
-        Commands::rm(args) => store.remove(args.key.to_owned().unwrap()),
+        Commands::rm(args) => {
+            todo!()
+        }
     }
 }
