@@ -1,5 +1,6 @@
 use clap::{Args, Parser, Subcommand};
-use kvs::kvs;
+use kvs::kvs::{KvStore, Result};
+use std::fs::File;
 
 #[derive(Parser)]
 #[clap(author, version)]
@@ -37,17 +38,32 @@ struct Rm {
     key: Option<String>,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let cli = Cli::parse();
-    let mut store = kvs::new();
-
+    // create File
+    let mut file = File::create("test");
     match &cli.command {
+        // set command
         Commands::set(args) => {
-            store.set(args.key.to_owned().unwrap(), args.value.to_owned().unwrap())
+            // open store at the current log directory
+            let mut store = KvStore::open("test")?;
+            store.set(
+                args.key.as_ref().unwrap().to_owned(),
+                args.value.as_ref().unwrap().to_owned(),
+            )
         }
         Commands::get(args) => {
-            store.get(args.key.to_owned().unwrap());
+            let mut store: KvStore = KvStore::open("test")?;
+            match store.get(args.key.as_ref().unwrap().to_owned()) {
+                Ok(data) => {
+                    println!("{}", data.unwrap());
+                    Ok(())
+                }
+                Err(err) => Err(err),
+            }
         }
-        Commands::rm(args) => (store.remove(args.key.to_owned().unwrap())),
+        Commands::rm(args) => {
+            todo!()
+        }
     }
 }
