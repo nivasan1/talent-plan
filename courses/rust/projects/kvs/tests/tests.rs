@@ -44,8 +44,7 @@ fn cli_rm_non_existent_key() {
         .args(&["rm", "key1"])
         .current_dir(&temp_dir)
         .assert()
-        .failure()
-        .stdout(eq("Key not found").trim());
+        .failure();
 }
 
 // `kvs set <KEY> <VALUE>` should print nothing and exit with zero.
@@ -203,12 +202,10 @@ fn get_stored_value() -> Result<()> {
 fn overwrite_value() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
     let mut store = KvStore::open(temp_dir.path())?;
-
     store.set("key1".to_owned(), "value1".to_owned())?;
     assert_eq!(store.get("key1".to_owned())?, Some("value1".to_owned()));
     store.set("key1".to_owned(), "value2".to_owned())?;
     assert_eq!(store.get("key1".to_owned())?, Some("value2".to_owned()));
-
     // Open from disk again and check persistent data.
     drop(store);
     let mut store = KvStore::open(temp_dir.path())?;
@@ -250,7 +247,7 @@ fn remove_key() -> Result<()> {
     let mut store = KvStore::open(temp_dir.path())?;
     store.set("key1".to_owned(), "value1".to_owned())?;
     assert!(store.remove("key1".to_owned()).is_ok());
-    assert_eq!(store.get("key1".to_owned())?, None);
+    assert_eq!(store.get("key1".to_owned()).unwrap(), None);
     Ok(())
 }
 
