@@ -1,8 +1,8 @@
+use crate::engines::kvs_engine::{ErrKeyNotFound, KvsEngine, Result};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp::Ordering;
 use std::error::Error;
-use std::fmt;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
@@ -12,7 +12,7 @@ use std::{
 };
 /// Example
 /// ```rust
-/// use kvs::kvs::KvStore;
+/// use kvs::engines::{kvs::KvStore, kvs_engine::KvsEngine};
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # let mut store = KvStore::open("./")?;
 /// # store.set("hello".to_string(), "world".to_string());
@@ -64,34 +64,17 @@ impl PartialOrd for Bound {
 /// maximum number of actions needed before log compaction
 const COMPACTION_SIZE: u64 = 10000;
 
-#[derive(Debug, Clone)]
-/// Error returned when the user attempts to remove a non-existent key
-pub struct ErrKeyNotFound {
-    key: String,
-}
-
-impl fmt::Display for ErrKeyNotFound {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "key not found: {}", self.key) // user-facing output
-    }
-}
-
-impl Error for ErrKeyNotFound {}
-
 /// CommandData is an enum representing the data that will ultimately
 /// be serialized and written to the logfile, the enum contains
 /// (rm, key, value)
 /// (set, key, value)
 /// (get, key, value)
 #[derive(Deserialize, Serialize, Debug)]
-enum CommandData {
+pub enum CommandData {
     Set { key: String, value: String },
     Get { key: String },
     Rm { key: String },
 }
-
-/// type alias used for wrapping arbitrary error messages / returns in Result
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 impl KvStore {
     /// Instantiate a KvStore through opening a file, with the
@@ -108,70 +91,6 @@ impl KvStore {
             dirty: true,
             actions: 0,
             log_pointers: HashMap::new(),
-        })
-    }
-
-    /// Inserts a (key, value) pair into map
-    /// serialized set, key, value
-    /// overwrites existing value is key exists
-    /// The user invokes kvs set mykey myvalue
-    /// kvs creates a value representing the "set" command, containing its key and value
-    /// It then serializes that command to a String
-    /// It then appends the serialized command to a file containing the log
-    /// If that succeeds, it exits silently with error code 0
-    /// If it fails, it exits by printing the error and returning a non-zero error code
-    pub fn set(&mut self, key: String, val: String) -> Result<()> {
-        self.write_log(CommandData::Set { key, value: val })
-            .map(|_| {
-                // update actions after write is successful
-                self.dirty = true;
-                ()
-            })
-    }
-
-    /// Gets a value associated with the key in KvStore.map
-    /// returns None if the key does not exist
-    /// clones the string from the map if it exists
-    pub fn get(&mut self, key: String) -> Result<Option<String>> {
-        // read the logs
-        self.read_log()?;
-        // get value from map, return ErrKeyNotFound if the key DNE,
-        let val = self.map.get(&key).map(|x| x.to_owned());
-        if let None = val {
-            // return the error if the key is not found
-            return Ok(None);
-        }
-        // key is found, write to log
-        self.write_log(CommandData::Get { key }).map(|_| {
-            // can panic here as we have exhausted earlier check
-            Some(val.unwrap())
-        })
-    }
-
-    /// Remves the value associated with the key in KvStore.map
-    /// if the key has no value, this is a no-op
-    /// The cached (key, value) pairs will not reflect log state after this routine
-    /// As such, future reads will read directly from log, and will cache results
-    // The user invokes kvs rm mykey
-    // Same as the "get" command, kvs reads the entire log to build the in-memory index
-    // It then checks the map if the given key exists
-    // If the key does not exist, it prints "Key not found", and exits with a non-zero error code
-    // If it succeeds
-    // It creates a value representing the "rm" command, containing its key
-    // It then appends the serialized command to the log
-    // If that succeeds, it exits silently with error code 0
-    pub fn remove(&mut self, key: String) -> Result<()> {
-        // update hashmap from log
-        self.read_log()?;
-        // remove value from hashmap
-        if let None = self.map.remove(&key) {
-            // return error if the key is not found
-            return Err(Into::<Box<dyn Error>>::into(ErrKeyNotFound { key }));
-        }
-        // write command to log
-        self.write_log(CommandData::Rm { key }).and_then(|_| {
-            self.dirty = true;
-            Ok(())
         })
     }
 
@@ -213,7 +132,7 @@ impl KvStore {
                             self.map.insert(key.clone(), val);
                             // write to log_pointers for result
                             self.log_pointers.insert(
-                                key.clone(),
+                                key,
                                 Bound {
                                     begin,
                                     end: end - 1,
@@ -321,4 +240,76 @@ impl KvStore {
         // compact log
         self.compact_log()
     }
+}
+
+// implementation of KvsEngine for KvStore
+impl KvsEngine for KvStore {
+    /// Inserts a (key, value) pair into map
+    /// serialized set, key, value
+    /// overwrites existing value is key exists
+    /// The user invokes kvs set mykey myvalue
+    /// kvs creates a value representing the "set" command, containing its key and value
+    /// It then serializes that command to a String
+    /// It then appends the serialized command to a file containing the log
+    /// If that succeeds, it exits silently with error code 0
+    /// If it fails, it exits by printing the error and returning a non-zero error code
+    fn set(&mut self, key: String, val: String) -> Result<()> {
+        self.write_log(CommandData::Set { key, value: val })
+            .map(|_| {
+                // update actions after write is successful
+                self.dirty = true;
+                ()
+            })
+    }
+
+    /// Gets a value associated with the key in KvStore.map
+    /// returns None if the key does not exist
+    /// clones the string from the map if it exists
+    fn get(&mut self, key: String) -> Result<Option<String>> {
+        // read the logs
+        self.read_log()?;
+        // get value from map, return ErrKeyNotFound if the key DNE,
+        let val = self.map.get(&key).map(|x| x.to_owned());
+        if let None = val {
+            // return the error if the key is not found
+            return Ok(None);
+        }
+        // key is found, write to log
+        self.write_log(CommandData::Get { key }).map(|_| {
+            // can panic here as we have exhausted earlier check
+            Some(val.unwrap())
+        })
+    }
+
+    /// Remves the value associated with the key in KvStore.map
+    /// if the key has no value, this is a no-op
+    /// The cached (key, value) pairs will not reflect log state after this routine
+    /// As such, future reads will read directly from log, and will cache results
+    // The user invokes kvs rm mykey
+    // Same as the "get" command, kvs reads the entire log to build the in-memory index
+    // It then checks the map if the given key exists
+    // If the key does not exist, it prints "Key not found", and exits with a non-zero error code
+    // If it succeeds
+    // It creates a value representing the "rm" command, containing its key
+    // It then appends the serialized command to the log
+    // If that succeeds, it exits silently with error code 0
+    fn remove(&mut self, key: String) -> Result<()> {
+        // update hashmap from log
+        self.read_log()?;
+        // remove value from hashmap
+        if let None = self.map.remove(&key) {
+            // return error if the key is not found
+            return Err(Into::<Box<dyn Error>>::into(ErrKeyNotFound { key }));
+        }
+        // write command to log
+        self.write_log(CommandData::Rm { key }).and_then(|_| {
+            self.dirty = true;
+            Ok(())
+        })
+    }
+}
+
+
+impl Clone for KvStore {
+    fn clone(&self) -> Self { todo!() }
 }

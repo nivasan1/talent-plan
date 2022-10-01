@@ -1,8 +1,11 @@
 use assert_cmd::prelude::*;
-use kvs::kvs::{KvStore, Result};
+use kvs::engines::{
+    kvs::KvStore,
+    kvs_engine::{KvsEngine, Result},
+};
 use predicates::ord::eq;
 use predicates::str::{contains, is_empty, PredicateStrExt};
-use std::process::Command;
+use std::{process::Command, thread};
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
@@ -295,4 +298,56 @@ fn compaction() -> Result<()> {
     }
 
     panic!("No compaction detected");
+}
+
+#[test]
+fn concurrent_get() -> Result<()> {
+    let temp_dir = TempDir::new().expect("unable to create temporary working directory");
+    let mut store = KvStore::open(temp_dir.path())?;
+    for i in 0..100 {
+        store
+            .set(format!("key{}", i), format!("value{}", i))
+            .unwrap();
+    }
+
+    let mut handles = Vec::new();
+    for thread_id in 0..100 {
+        let mut  store = store.clone();
+        let handle = thread::spawn(move || {
+            for i in 0..100 {
+                let key_id = (i + thread_id) % 100;
+                assert_eq!(
+                    store.get(format!("key{}", key_id)).unwrap(),
+                    Some(format!("value{}", key_id))
+                );
+            }
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    // Open from disk again and check persistent data
+    drop(store);
+    let store = KvStore::open(temp_dir.path())?;
+    let mut handles = Vec::new();
+    for thread_id in 0..100 {
+        let mut store = store.clone();
+        let handle = thread::spawn(move || {
+            for i in 0..100 {
+                let key_id = (i + thread_id) % 100;
+                assert_eq!(
+                    store.get(format!("key{}", key_id)).unwrap(),
+                    Some(format!("value{}", key_id))
+                );
+            }
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    Ok(())
 }
