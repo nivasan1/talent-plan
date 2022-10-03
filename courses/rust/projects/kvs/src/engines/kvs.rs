@@ -9,7 +9,9 @@ use std::io::Write;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
+    sync::{Arc}
 };
+use parking_lot::Mutex;
 /// Example
 /// ```rust
 /// use kvs::engines::{kvs::KvStore, kvs_engine::KvsEngine};
@@ -241,8 +243,6 @@ impl KvStore {
         self.compact_log()
     }
 }
-
-// implementation of KvsEngine for KvStore
 impl KvsEngine for KvStore {
     /// Inserts a (key, value) pair into map
     /// serialized set, key, value
@@ -309,7 +309,3 @@ impl KvsEngine for KvStore {
     }
 }
 
-
-impl Clone for KvStore {
-    fn clone(&self) -> Self { todo!() }
-}

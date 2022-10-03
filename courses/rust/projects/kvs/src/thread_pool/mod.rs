@@ -1,5 +1,7 @@
 use crate::engines::kvs_engine::Result;
 
+pub type Task = Box<dyn FnOnce() + Send + 'static>;
+
 pub trait ThreadPool {
     /// create i threads in this thread pool, panic if the number of active threads
     /// is above num_cpu threads

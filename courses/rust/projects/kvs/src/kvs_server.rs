@@ -1,21 +1,22 @@
-use crate::engines::{
+use crate::{engines::{
     kvs::{CommandData, KvStore},
-    kvs_engine::{ErrKeyNotFound, KvsEngine, Result},
+    kvs_engine::{ErrKeyNotFound, KvsEngine, Result, SharedKvsEngine},
     sled::SledKvsEngine,
-};
+}, thread_pool::ThreadPool};
 use log::*;
 use serde_json;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 use stderrlog;
+use crate::thread_pool::naive::*;
 /// the kvs-server is composed of three parts
 /// 1. A TcpListener - this listener is spawned
 /// 2. A storage engine - impl KvStore, this is what will be
 /// used to process requests from clients
 /// 3. A slog::Logger, this will be used to log messages from server running in prod
 pub struct KvsServer {
-    engine: Box<dyn KvsEngine>,
+    engine: SharedKvsEngine,
     listener: TcpListener,
     log: stderrlog::StdErrLog,
 }
@@ -28,17 +29,17 @@ impl KvsServer {
         // first bind to the socket provided, and return the boxed error if necessary
         let listener = TcpListener::bind(addr).map_err(|err| Into::<Box<dyn Error>>::into(err))?;
         // now that server is listening on provided port, open a KvStore in ./
-        let engine: Box<dyn KvsEngine>;
+        let engine: SharedKvsEngine;
         if is_sled {
-            engine = Box::from(SledKvsEngine::open("./db")?);
+            engine = SharedKvsEngine::from(SledKvsEngine::open("./db")?);
         } else {
-            engine = Box::from(KvStore::open("./")?)
+            engine = SharedKvsEngine::from(KvStore::open("./")?)
         }
 
         // finally create the logger and recieve requests from the stream
         let log = stderrlog::new().verbosity(3).to_owned();
         Ok(KvsServer {
-            engine: Box::from(engine),
+            engine: engine,
             listener: listener,
             log: log,
         })
@@ -49,6 +50,8 @@ impl KvsServer {
     pub fn serve(&mut self) -> Result<()> {
         // init logger
         self.log.init().map_err(Box::<dyn Error>::from)?;
+        // initialze 100 threads
+        let mut pool = NaiveThreadPool::new(100)?;
         // iterate over all active connections
         for stream in self.listener.try_clone()?.incoming() {
             match stream {
@@ -76,7 +79,10 @@ impl KvsServer {
                         }
                     }
                     // handle request
-                    self.handle_request(&cmd, stream)?;
+                    let eng = self.engine.clone();
+                    pool.spawn(|| {
+                        Self::handle_request(eng, cmd, stream);
+                    })
                 }
                 Err(e) => {
                     // return the error if there is error in recv of TcpStream
@@ -91,12 +97,12 @@ impl KvsServer {
     /// 1. Match on Command Received from caller
     /// 2. Pass command to underlying storage engine
     /// 3. Return result to client, whatever it may be
-    fn handle_request(&mut self, cmd: &CommandData, mut stream: TcpStream) -> Result<()> {
+    fn handle_request(engine: SharedKvsEngine, cmd: CommandData, mut stream: TcpStream) -> Result<()> {
         // match on CommandData and execute requests as necessary
         match cmd {
             CommandData::Get { key } => {
                 // get key from log
-                match self.engine.get(key.to_owned())? {
+                match engine.get(key.to_owned())? {
                     None => {
                         // write the result back to client
                         info!("sending response: {:?}", "Key not found");
@@ -116,11 +122,11 @@ impl KvsServer {
             }
             CommandData::Set { key, value } => {
                 // remove key from log
-                self.engine.set(key.to_owned(), value.to_owned())?;
+                engine.set(key.to_owned(), value.to_owned())?;
             }
             CommandData::Rm { key } => {
                 // set (key, value) in log
-                match self.engine.remove(key.to_owned()) {
+                match engine.remove(key.to_owned()) {
                     // return nothing if successful
                     Ok(_) => (),
                     Err(e) => {

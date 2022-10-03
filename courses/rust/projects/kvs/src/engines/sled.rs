@@ -5,6 +5,7 @@ use sled::{Config, Db};
 use std::error::Error;
 use std::path::Path;
 /// SledKvsEngine is a wrapper around a Sled embedded database for observing reads / writes
+#[derive(Clone)]
 pub struct SledKvsEngine {
     // sled DB located in dir,
     Db: Db,

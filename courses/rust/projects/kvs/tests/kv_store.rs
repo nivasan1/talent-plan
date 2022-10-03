@@ -1,11 +1,11 @@
 use assert_cmd::prelude::*;
 use kvs::engines::{
     kvs::KvStore,
-    kvs_engine::{KvsEngine, Result},
+    kvs_engine::{KvsEngine, Result, SharedKvsEngine}, sled::SledKvsEngine,
 };
 use predicates::ord::eq;
 use predicates::str::{contains, is_empty, PredicateStrExt};
-use std::{process::Command, thread};
+use std::{process::Command, thread, time::Duration};
 use tempfile::TempDir;
 use walkdir::WalkDir;
 
@@ -309,13 +309,16 @@ fn concurrent_get() -> Result<()> {
             .set(format!("key{}", i), format!("value{}", i))
             .unwrap();
     }
-
+    let shared_kvs_engine = SharedKvsEngine::from(store);
     let mut handles = Vec::new();
     for thread_id in 0..100 {
-        let mut  store = store.clone();
+        let mut store = shared_kvs_engine.clone();
         let handle = thread::spawn(move || {
             for i in 0..100 {
                 let key_id = (i + thread_id) % 100;
+                if let Err(err) = store.get(format!("key{}", key_id)) {
+                    println!("{}", err);
+                }
                 assert_eq!(
                     store.get(format!("key{}", key_id)).unwrap(),
                     Some(format!("value{}", key_id))
@@ -329,11 +332,11 @@ fn concurrent_get() -> Result<()> {
     }
 
     // Open from disk again and check persistent data
-    drop(store);
-    let store = KvStore::open(temp_dir.path())?;
+    drop(shared_kvs_engine);
+    let shared_kvs_engine = SharedKvsEngine::from(KvStore::open(temp_dir.path())?);
     let mut handles = Vec::new();
     for thread_id in 0..100 {
-        let mut store = store.clone();
+        let mut store = shared_kvs_engine.clone();
         let handle = thread::spawn(move || {
             for i in 0..100 {
                 let key_id = (i + thread_id) % 100;
@@ -351,3 +354,60 @@ fn concurrent_get() -> Result<()> {
 
     Ok(())
 }
+
+
+#[test]
+fn concurrent_get_sled() -> Result<()> {
+    let temp_dir = TempDir::new().expect("unable to create temporary working directory");
+    let mut store = SledKvsEngine::open(temp_dir.path())?;
+    for i in 0..100 {
+        store
+            .set(format!("key{}", i), format!("value{}", i))
+            .unwrap();
+    }
+    let shared_kvs_engine = SharedKvsEngine::from(store);
+    let mut handles = Vec::new();
+    for thread_id in 0..100 {
+        let store = shared_kvs_engine.clone();
+        let handle = thread::spawn(move || {
+            for i in 0..100 {
+                let key_id = (i + thread_id) % 100;
+                if let Err(err) = store.get(format!("key{}", key_id)) {
+                    println!("{}", err);
+                }
+                assert_eq!(
+                    store.get(format!("key{}", key_id)).unwrap(),
+                    Some(format!("value{}", key_id))
+                );
+            }
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    // Open from disk again and check persistent data
+    drop(shared_kvs_engine);
+    let shared_kvs_engine = SharedKvsEngine::from(SledKvsEngine::open(temp_dir.path())?);
+    let mut handles = Vec::new();
+    for thread_id in 0..100 {
+        let store = shared_kvs_engine.clone();
+        let handle = thread::spawn(move || {
+            for i in 0..100 {
+                let key_id = (i + thread_id) % 100;
+                assert_eq!(
+                    store.get(format!("key{}", key_id)).unwrap(),
+                    Some(format!("value{}", key_id))
+                );
+            }
+        });
+        handles.push(handle);
+    }
+    for handle in handles {
+        handle.join().unwrap();
+    }
+
+    Ok(())
+}
+

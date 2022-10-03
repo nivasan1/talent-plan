@@ -1,0 +1,4 @@
+{"Set":{"key":"a","value":"a"}}
+{"Set":{"key":"b","value":"a"}}
+{"Get":{"key":"b"}}
+{"Get":{"key":"a"}}
