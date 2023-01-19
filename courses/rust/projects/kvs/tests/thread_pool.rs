@@ -1,12 +1,12 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use kvs::thread_pool::{naive::*, rayon::*, shared_queue::*, ThreadPool};
 use kvs::engines::kvs_engine::Result;
+use kvs::thread_pool::{naive::*, rayon::*, shared_queue::*, ThreadPool};
 
 use crossbeam_utils::sync::WaitGroup;
 
-fn spawn_counter<P: ThreadPool>(mut pool:  P) -> Result<()> {
+fn spawn_counter<P: ThreadPool>(mut pool: P) -> Result<()> {
     const TASK_NUM: usize = 20;
     const ADD_COUNT: usize = 1000;
 
@@ -36,9 +36,7 @@ fn spawn_panic_task<P: ThreadPool>() -> Result<()> {
     for _ in 0..TASK_NUM {
         pool.spawn(move || {
             // It suppresses flood of panic messages to the console.
-            // You may find it useful to comment this out during development.
             panic_control::disable_hook_in_current_thread();
-
             panic!();
         })
     }
@@ -54,7 +52,7 @@ fn naive_thread_pool_spawn_counter() -> Result<()> {
 
 #[test]
 fn shared_queue_thread_pool_spawn_counter() -> Result<()> {
-    let pool = SharedQueueThreadPool::new(4)?;
+    let pool = SharedQueueThreadPool::new(1000)?;
     spawn_counter(*pool)
 }
 

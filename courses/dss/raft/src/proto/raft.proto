@@ -2,12 +2,20 @@ syntax = "proto3";
 
 package raftpb;
 
-// Example RequestVote RPC arguments structure.
+/// RequestVote - Invoked by candidates to request votes in election from followers
+/// Implementation - The Term and LastLog(Index/Term) are used to determine how `up-to-date` 
+/// the sender of this message is, 
 message RequestVoteArgs {
-    // Your data here (2A, 2B).
+    // The Term of the Candidate sending this rpc
+    uint64 Term = 1;
+    // The CandidateId of the sender of this message
+    uint64 CandidateID = 2;
+    // The Index / Term from the latest log entry of this candidate
+    uint64 LastLogIndex = 3;
+    // Term from which this node's latest committed log originated
+    uint64 LastLogTerm = 4;
 }
 
-// Example RequestVote RPC reply structure.
+// RequestVoteReply - Reply from Nodes 
 message RequestVoteReply {
-    // Your data here (2A).
 }

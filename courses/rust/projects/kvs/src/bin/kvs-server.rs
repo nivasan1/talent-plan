@@ -2,6 +2,7 @@ use clap::Parser;
 use kvs::cli::Server;
 use kvs::engines::kvs_engine::Result;
 use kvs::kvs_server::KvsServer;
+use kvs::thread_pool::{shared_queue::SharedQueueThreadPool, ThreadPool, naive::NaiveThreadPool};
 use std::error::Error;
 use std::net::{SocketAddr, ToSocketAddrs};
 fn main() -> Result<()> {
@@ -29,5 +30,5 @@ fn main() -> Result<()> {
         _ => panic!(),
     }
     // now serve requests
-    server.serve()
+    server.serve(*(SharedQueueThreadPool::new(4)?))
 }

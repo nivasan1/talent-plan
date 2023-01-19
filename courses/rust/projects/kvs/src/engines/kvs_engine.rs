@@ -1,6 +1,6 @@
-use std::{error::Error, fmt};
-use std::sync::Arc;
 use parking_lot::Mutex;
+use std::sync::Arc;
+use std::{error::Error, fmt};
 /// type alias used for wrapping arbitrary error messages / returns in Result
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -9,14 +9,14 @@ pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 // reference count goes to zero
 #[derive(Clone)]
 pub struct SharedKvsEngine {
-    engine: Arc<Mutex<dyn KvsEngine>>
+    engine: Arc<Mutex<dyn KvsEngine>>,
 }
 
 impl SharedKvsEngine {
-    /// instantiate a SharedKvsEngine as a locked. atomically reference counted pointer to
+    /// instantiate a SharedKvsEngine as a locked. atomically referenced counted pointer to
     /// the object on the heap
-    pub fn from(engine:  impl KvsEngine) -> Self {
-        SharedKvsEngine { 
+    pub fn from(engine: impl KvsEngine) -> Self {
+        SharedKvsEngine {
             engine: Arc::from(Mutex::from(engine)),
         }
     }
@@ -34,7 +34,7 @@ impl SharedKvsEngine {
         // take lock
         let mut unlocked_engine = self.engine.lock();
         // return value from underlying KvsEngine
-        unlocked_engine.get(key)    
+        unlocked_engine.get(key)
     }
 
     /// direct implementation of KvsEngine, as there cannot be cloned mutable refs between threads
@@ -42,7 +42,7 @@ impl SharedKvsEngine {
         // take lock
         let mut unlocked_engine = self.engine.lock();
         // return value from underlying KvsEngine
-        unlocked_engine.remove(key)    
+        unlocked_engine.remove(key)
     }
 }
 
@@ -51,7 +51,7 @@ impl SharedKvsEngine {
 /// 1. set(&mut self, key: String, val: String) -> Result<()>
 /// 2. get(&mut self, key: String) -> Result<Option<String>>
 /// 3. remove(&mut self, key: String) -> Result<()>
-pub trait KvsEngine: Send + 'static + Sync{
+pub trait KvsEngine: Send + 'static + Sync {
     /// Inserts a (key, value) pair into map
     /// serialized set, key, value
     /// overwrites existing value is key exists

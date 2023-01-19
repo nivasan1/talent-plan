@@ -1,7 +1,8 @@
 use assert_cmd::prelude::*;
 use kvs::engines::{
     kvs::KvStore,
-    kvs_engine::{KvsEngine, Result, SharedKvsEngine}, sled::SledKvsEngine,
+    kvs_engine::{KvsEngine, Result, SharedKvsEngine},
+    sled::SledKvsEngine,
 };
 use predicates::ord::eq;
 use predicates::str::{contains, is_empty, PredicateStrExt};
@@ -355,7 +356,6 @@ fn concurrent_get() -> Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn concurrent_get_sled() -> Result<()> {
     let temp_dir = TempDir::new().expect("unable to create temporary working directory");
@@ -410,4 +410,3 @@ fn concurrent_get_sled() -> Result<()> {
 
     Ok(())
 }
-

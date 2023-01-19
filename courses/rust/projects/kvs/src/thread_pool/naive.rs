@@ -11,7 +11,6 @@ pub struct Worker {
     workChan: Sender<(Task, Sender<()>)>,
 }
 
-
 pub struct NaiveThreadPool {
     recvChan: Vec<Receiver<()>>,
     // all of these threads are parked, waiting for a task to be sent over the workChan
@@ -22,7 +21,7 @@ pub struct NaiveThreadPool {
 /// Naive implementation of a thread pool
 impl ThreadPool for NaiveThreadPool {
     /// create a new NaiveThreadPool with threads available threads
-    fn new(threads: i32) -> Result<Box<Self>>{
+    fn new(threads: i32) -> Result<Box<Self>> {
         // instantiate size workers, and append them to availThreads
         let mut workers = Vec::new();
         // vector of sending ends of channel
@@ -30,12 +29,11 @@ impl ThreadPool for NaiveThreadPool {
             // push Workers onto vec
             let (tx, rx) = channel::<(Task, Sender<()>)>();
             workers.push(Worker {
-                // pass reference of receive chan to the 
                 thread: thread::spawn(move || {
                     // iterate continuously, until the rx is closed
                     loop {
                         // receive task on rx
-                        let (task, tx)  = rx.recv().unwrap();
+                        let (task, tx) = rx.recv().unwrap();
                         // execute task
                         task();
                         // once done send on tx chan
@@ -50,14 +48,17 @@ impl ThreadPool for NaiveThreadPool {
             });
         }
 
-        Ok(Box::from(NaiveThreadPool{
+        Ok(Box::from(NaiveThreadPool {
             availThreads: workers,
             workingThreads: Vec::new(),
             recvChan: Vec::new(),
-        }))    
+        }))
     }
     /// spawn a new task as one of the threads in the pool
-    fn spawn<F>(&mut self, job: F) where F: FnOnce() + Send + 'static {
+    fn spawn<F>(&mut self, job: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
         // pop working vector off of the stack
         let mut is_worker = self.availThreads.pop();
         // no workers are available
@@ -66,7 +67,7 @@ impl ThreadPool for NaiveThreadPool {
             is_worker = self.availThreads.pop();
         }
         let worker = is_worker.unwrap();
-        // send task, tx over channel   
+        // send task, tx over channel
         let (tx, rx) = channel();
         worker.workChan.send((Box::from(job), tx)).unwrap();
         // push worker into workingThreads
@@ -77,7 +78,7 @@ impl ThreadPool for NaiveThreadPool {
 }
 
 impl NaiveThreadPool {
-    /// clear iterates over the workingThreads, and their receive channels, 
+    /// clear iterates over the workingThreads, and their receive channels,
     /// if try_recv succeeds, then the thread has finished, and it is ready for more work
     fn clear(&mut self, fully_clear: bool) -> Result<()> {
         let mut continue_loop = true;
@@ -96,10 +97,10 @@ impl NaiveThreadPool {
                         // we may break from the loop after this iteration
                         continue_loop = false;
                         removed += 1;
-                    },
+                    }
                     Err(err) => {
                         // if there was an error in try recv, simply continue
-                        if let TryRecvError::Empty  = err {
+                        if let TryRecvError::Empty = err {
                             continue;
                         }
                         // if there was an error in the underlying channel fail

@@ -129,7 +129,7 @@ fn test_basic_agree_2b() {
     let iters = 3;
     for index in 1..=iters {
         let (nd, _) = cfg.n_committed(index);
-        if nd > 0 {
+        if nd > 0 { 
             panic!("some have committed before start()");
         }
 

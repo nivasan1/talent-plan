@@ -1,15 +1,18 @@
-use crate::{engines::{
-    kvs::{CommandData, KvStore},
-    kvs_engine::{ErrKeyNotFound, KvsEngine, Result, SharedKvsEngine},
-    sled::SledKvsEngine,
-}, thread_pool::ThreadPool};
+use crate::thread_pool::naive::*;
+use crate::{
+    engines::{
+        kvs::{CommandData, KvStore},
+        kvs_engine::{ErrKeyNotFound, KvsEngine, Result, SharedKvsEngine},
+        sled::SledKvsEngine,
+    },
+    thread_pool::ThreadPool,
+};
 use log::*;
 use serde_json;
 use std::error::Error;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs};
 use stderrlog;
-use crate::thread_pool::naive::*;
 /// the kvs-server is composed of three parts
 /// 1. A TcpListener - this listener is spawned
 /// 2. A storage engine - impl KvStore, this is what will be
@@ -47,11 +50,10 @@ impl KvsServer {
     /// KvsServer serve, this method instantiates a KvStore in the current directory
     /// Instantiates it's logger, and begins serving on the designated port / address
     /// It returns a Result<()>
-    pub fn serve(&mut self) -> Result<()> {
+    pub fn serve<A: ThreadPool>(&mut self, mut pool: A) -> Result<()> {
         // init logger
         self.log.init().map_err(Box::<dyn Error>::from)?;
         // initialze 100 threads
-        let mut pool = NaiveThreadPool::new(100)?;
         // iterate over all active connections
         for stream in self.listener.try_clone()?.incoming() {
             match stream {
@@ -97,7 +99,11 @@ impl KvsServer {
     /// 1. Match on Command Received from caller
     /// 2. Pass command to underlying storage engine
     /// 3. Return result to client, whatever it may be
-    fn handle_request(engine: SharedKvsEngine, cmd: CommandData, mut stream: TcpStream) -> Result<()> {
+    fn handle_request(
+        engine: SharedKvsEngine,
+        cmd: CommandData,
+        mut stream: TcpStream,
+    ) -> Result<()> {
         // match on CommandData and execute requests as necessary
         match cmd {
             CommandData::Get { key } => {

@@ -1,4 +1,5 @@
 use crate::engines::kvs_engine::{ErrKeyNotFound, KvsEngine, Result};
+use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::cmp::Ordering;
@@ -9,9 +10,8 @@ use std::io::Write;
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
-    sync::{Arc}
+    sync::Arc,
 };
-use parking_lot::Mutex;
 /// Example
 /// ```rust
 /// use kvs::engines::{kvs::KvStore, kvs_engine::KvsEngine};
@@ -308,4 +308,3 @@ impl KvsEngine for KvStore {
         })
     }
 }
-

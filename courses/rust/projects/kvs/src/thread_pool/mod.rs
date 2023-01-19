@@ -7,9 +7,9 @@ pub trait ThreadPool {
     /// is above num_cpu threads
     fn new(threads: i32) -> Result<Box<Self>>;
     /// execute a task on the most recently available thread in the thread pool
-    fn spawn<F>(&mut self, job: F) 
-        where F: FnOnce() + Send + 'static;
-
+    fn spawn<F>(&mut self, job: F)
+    where
+        F: FnOnce() + Send + 'static;
 }
 
 pub mod naive;

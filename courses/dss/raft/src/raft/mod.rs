@@ -1,4 +1,4 @@
-use std::sync::mpsc::{sync_channel, Receiver};
+use std::sync::mpsc::{sync_channel, Receiver, Mutex, Arc};
 use std::sync::Arc;
 
 use futures::channel::mpsc::UnboundedSender;
@@ -33,11 +33,15 @@ pub enum ApplyMsg {
 /// State of a raft peer.
 #[derive(Default, Clone, Debug)]
 pub struct State {
+    // current term for this node 
     pub term: u64,
     pub is_leader: bool,
+    // candidate id for node that this peer voted for in term election
+    pub voted_for: usize,
 }
 
 impl State {
+    /// returns a default initialized state
     /// The current term of this peer.
     pub fn term(&self) -> u64 {
         self.term
@@ -56,10 +60,9 @@ pub struct Raft {
     persister: Box<dyn Persister>,
     // this peer's index into peers[]
     me: usize,
-    state: Arc<State>,
-    // Your data here (2A, 2B, 2C).
-    // Look at the paper's Figure 2 for a description of what
-    // state a Raft server must maintain.
+    // current state of the raft peer
+    state: Arc<Mutex<State>>,
+    // internal msg queue, 
 }
 
 impl Raft {
@@ -226,14 +229,15 @@ impl Raft {
 // ```
 #[derive(Clone)]
 pub struct Node {
-    // Your code here.
+    raft: Raft
 }
 
 impl Node {
     /// Create a new raft service.
     pub fn new(raft: Raft) -> Node {
-        // Your code here.
-        crate::your_code_here(raft)
+        return Node {
+            raft, 
+        }
     }
 
     /// the service using Raft (e.g. a k/v server) wants to start
@@ -252,26 +256,17 @@ impl Node {
     where
         M: labcodec::Message,
     {
-        // Your code here.
-        // Example:
-        // self.raft.start(command)
-        crate::your_code_here(command)
+        self.raft.start(command)
     }
 
     /// The current term of this peer.
     pub fn term(&self) -> u64 {
-        // Your code here.
-        // Example:
-        // self.raft.term
-        crate::your_code_here(())
+        self.raft.state.term()
     }
 
     /// Whether this peer believes it is the leader.
     pub fn is_leader(&self) -> bool {
-        // Your code here.
-        // Example:
-        // self.raft.leader_id == self.id
-        crate::your_code_here(())
+        self.raft.state.is_leader
     }
 
     /// The current state of this peer.
@@ -279,6 +274,7 @@ impl Node {
         State {
             term: self.term(),
             is_leader: self.is_leader(),
+            voted_for: self.voted_for,
         }
     }
 
@@ -322,13 +318,17 @@ impl Node {
     }
 }
 
+
+/// implementation of the raft service, daemon process that clients will instantiate and send 
+/// requests to
 #[async_trait::async_trait]
 impl RaftService for Node {
     // example RequestVote RPC handler.
     //
-    // CAVEATS: Please avoid locking or sleeping here, it may jam the network.
+    /// Spawn thread to await and handle response from Client request_votes, 
+    /// spawns threads to await (with timeout) on responses from peers
+    /// Called upon follower becoming candidate, and requesting votes for term election
     async fn request_vote(&self, args: RequestVoteArgs) -> labrpc::Result<RequestVoteReply> {
-        // Your code here (2A, 2B).
-        crate::your_code_here(args)
+        
     }
 }
